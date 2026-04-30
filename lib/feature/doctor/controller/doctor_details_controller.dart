@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:dartz/dartz.dart';
 
 import '../../../core/class/status_request.dart';
 import '../../../core/routes/app_route.dart';
 import '../../../core/service/serviecs.dart';
 import '../data/doctors_data.dart';
+import '../data/patient_doctors_data.dart';
 import '../data/subscription_data.dart';
 import '../model/doctor_model.dart';
-import '../widget/doctor_virtual_payment_sheet.dart';
 
 class DoctorDetailsController extends GetxController {
   final MyServices myServices = Get.find();
   final SubscriptionData subscriptionData = SubscriptionData(Get.find());
   final DoctorsData doctorsData = DoctorsData(Get.find());
+  final PatientDoctorsData patientDoctorsData = PatientDoctorsData(Get.find());
   final TextEditingController cardHolderController = TextEditingController();
   final TextEditingController cardNumberController = TextEditingController();
   final TextEditingController cardExpController = TextEditingController(); // MM/YY
@@ -75,9 +75,69 @@ class DoctorDetailsController extends GetxController {
 
     _userId = myServices.userId;
     _loadSubscribedState();
+    // Ensure the Subscribe/Chat button is correct even after app restart:
+    // refresh subscribed doctors from backend, then re-evaluate this doctor's state.
+    Future.microtask(_syncMyDoctorsAndRefreshState);
     _setRatingFromDoctor();
     _fetchDoctorRates();
     _fetchMyRate();
+  }
+
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    return int.tryParse(v?.toString() ?? "") ?? 0;
+  }
+
+  int _extractDoctorRecordId(dynamic e) {
+    if (e is! Map) return 0;
+    // Common shapes:
+    // - Doctor object: { id, user_id, name, ... }
+    // - Subscription-ish: { doctor_id, doctor: { id, ... }, ... }
+    final doctorId = _toInt(e["doctor_id"] ?? e["doctorId"]);
+    if (doctorId > 0) return doctorId;
+    final doctor = e["doctor"];
+    if (doctor is Map) {
+      final nestedId = _toInt(doctor["id"]);
+      if (nestedId > 0) return nestedId;
+    }
+    // Only fall back to e["id"] if it looks like a doctor payload.
+    final looksLikeDoctor = e.containsKey("is_verified") ||
+        e.containsKey("specialization") ||
+        e.containsKey("consultation_fee") ||
+        e.containsKey("years_of_experience") ||
+        e.containsKey("rating");
+    if (looksLikeDoctor) {
+      final id = _toInt(e["id"]);
+      if (id > 0) return id;
+    }
+    return 0;
+  }
+
+  Future<void> _syncMyDoctorsAndRefreshState() async {
+    // Only for logged-in patients/users
+    if (!myServices.isLoggedIn) return;
+    if (!myServices.isPatient) return;
+
+    final token = myServices.token;
+    if (token == null || token.trim().isEmpty) return;
+
+    final res = await patientDoctorsData.getMyDoctors(token: token);
+    await res.fold(
+      (_) async {},
+      (r) async {
+        final raw = r["data"] ?? r["doctors"] ?? r;
+        final list = raw is List ? raw : <dynamic>[];
+        final ids = <int>{};
+        for (final e in list) {
+          final id = _extractDoctorRecordId(e);
+          if (id > 0) ids.add(id);
+        }
+        await myServices.setSubscribedDoctorIds(ids);
+      },
+    );
+
+    // Recompute state for this doctor
+    _loadSubscribedState();
   }
 
   /// Fallback from doctor list payload until API responds
@@ -186,7 +246,8 @@ class DoctorDetailsController extends GetxController {
   }
 
    void openVirtualPaymentSheet() {
-    if (isApproved) {
+    // If user already subscribed (even pending), go to chat.
+    if (isSubscribed) {
       goToChat();
       return;
     }

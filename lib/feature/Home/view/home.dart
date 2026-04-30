@@ -9,7 +9,7 @@ import 'package:nutri_guide/core/shared/widgets/drawer.dart';
 import 'package:nutri_guide/feature/ads/model/ad_model.dart';
 import 'package:nutri_guide/core/routes/app_route.dart';
 
-import '../../home/controller/home_controller.dart';
+import 'package:nutri_guide/feature/home/controller/home_controller.dart';
 
 class HomePage extends GetView<HomeController> {
   const HomePage({super.key});
@@ -53,10 +53,14 @@ class HomePage extends GetView<HomeController> {
                     //   ),
                     // ],
                   ),
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                    child: Column(
-                      children: [
+                  child: RefreshIndicator(
+                    onRefresh: controller.refreshHome,
+                    color: AppColor.primary,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      child: Column(
+                        children: [
                         const SizedBox(height: 24),
                         // ─── Ads carousel (placeholder when API empty) ───
                         _buildAdsCarousel(controller),
@@ -160,6 +164,7 @@ class HomePage extends GetView<HomeController> {
                           onTap: controller.logout,
                         ),
                       ],
+                      ),
                     ),
                   ),
                 ),
@@ -343,7 +348,11 @@ class _AdsCarouselState extends State<_AdsCarousel> {
               itemCount: widget.ads.length,
               itemBuilder: (_, i) {
                 final ad = widget.ads[i];
-                return _AdCard(ad: ad, title: _adTitle(ad));
+                return _AdCard(
+                  ad: ad,
+                  title: _adTitle(ad),
+                  onTap: () => Get.toNamed(AppRoute.adDetails, arguments: ad),
+                );
               },
             ),
           ),
@@ -386,15 +395,19 @@ class _AdsCarouselState extends State<_AdsCarousel> {
 class _AdCard extends StatelessWidget {
   final AdModel ad;
   final String title;
+  final VoidCallback? onTap;
 
-  const _AdCard({required this.ad, required this.title});
+  const _AdCard({required this.ad, required this.title, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final url = ad.imageUrl;
     final hasImage = url != null && url.isNotEmpty;
 
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
       margin: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -502,6 +515,7 @@ class _AdCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 

@@ -236,9 +236,9 @@ class _DoctorDetailsPageState extends State<DoctorDetailsPage> with WidgetsBindi
                               child: ElevatedButton.icon(
                                  onPressed: c.statusRequest == StatusRequest.loading
                                     ? null
-                                    : (c.isApproved ? c.goToChat : c.openVirtualPaymentSheet),
-                                icon: Icon(c.isApproved ? Icons.chat_bubble_outline : Icons.lock_outline),
-                                label: Text(c.isApproved ? "chat".tr : "subscribe".tr),
+                                    : (c.isSubscribed ? c.goToChat : c.openVirtualPaymentSheet),
+                                icon: Icon(c.isSubscribed ? Icons.chat_bubble_outline : Icons.lock_outline),
+                                label: Text(c.isSubscribed ? "chat".tr : "subscribe".tr),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColor.primary,
                                   foregroundColor: Colors.white,

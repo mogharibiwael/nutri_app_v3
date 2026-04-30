@@ -33,6 +33,9 @@ class AppRoute {
   static const calculationsHistory = "/calculations-history";
   static const doctorPatientCalculations = "/doctor-patient-calculations";
 
+  /// Public ad details (from home banner)
+  static const adDetails = "/ad-details";
+
 //   doctor
   static const doctorWelcome = "/doctor-welcome";
   static const doctorHome = "/doctor-home";

@@ -4,9 +4,10 @@ import 'package:nutri_guide/core/constant/api_link.dart';
 import 'package:nutri_guide/core/service/serviecs.dart';
 import 'package:nutri_guide/core/permissions/permissions.dart';
 import 'package:nutri_guide/core/class/status_request.dart';
-import 'package:nutri_guide/core/function/handel_data.dart';
+import 'package:nutri_guide/core/class/crud.dart';
 import 'package:nutri_guide/feature/ads/data/ads_data.dart';
 import 'package:nutri_guide/feature/ads/model/ad_model.dart';
+import 'package:nutri_guide/feature/doctor/data/patient_doctors_data.dart';
 
 import '../../../core/routes/app_route.dart';
 
@@ -14,6 +15,8 @@ class HomeController extends GetxController {
   final MyServices myServices = Get.find();
   late final Permissions permissions;
   final AdsData adsData = AdsData(Get.find());
+  final Crud crud = Get.find();
+  final PatientDoctorsData patientDoctorsData = PatientDoctorsData(Get.find());
 
   Map<String, dynamic>? user;
 
@@ -27,6 +30,88 @@ class HomeController extends GetxController {
     permissions = Permissions(myServices);
     loadUser();
     fetchAds();
+    // Make sure subscription gating (My Diet button) is correct even after status changes.
+    syncSubscriptions();
+  }
+
+  Future<void> refreshHome() async {
+    await Future.wait([
+      fetchAds(),
+      syncSubscriptions(),
+    ]);
+  }
+
+  int _toInt(dynamic v) {
+    if (v is int) return v;
+    return int.tryParse(v?.toString() ?? "") ?? 0;
+  }
+
+  int _extractDoctorRecordId(dynamic e) {
+    if (e is! Map) return 0;
+    final doctorId = _toInt(e["doctor_id"] ?? e["doctorId"]);
+    if (doctorId > 0) return doctorId;
+    final doctor = e["doctor"];
+    if (doctor is Map) {
+      final nestedId = _toInt(doctor["id"]);
+      if (nestedId > 0) return nestedId;
+    }
+    final looksLikeDoctor = e.containsKey("is_verified") ||
+        e.containsKey("specialization") ||
+        e.containsKey("consultation_fee") ||
+        e.containsKey("years_of_experience") ||
+        e.containsKey("rating");
+    if (looksLikeDoctor) {
+      final id = _toInt(e["id"]);
+      if (id > 0) return id;
+    }
+    return 0;
+  }
+
+  Future<void> syncSubscriptions() async {
+    // Only relevant for patients/users.
+    if (!myServices.isLoggedIn) return;
+    if (!myServices.isPatient) return;
+
+    final token = myServices.token;
+    if (token == null || token.trim().isEmpty) return;
+
+    final userId = myServices.userId;
+    if (userId == null || userId <= 0) return;
+
+    final res = await crud.getData(
+      ApiLinks.usersSubscribedByUserId(userId),
+      token: token,
+    );
+    res.fold((_) {}, (r) async {
+      // Endpoint returns an OBJECT with subscription_status
+      final status = (r["subscription_status"] ?? r["status"] ?? "")
+          .toString()
+          .toLowerCase()
+          .trim();
+
+      final isActive = status == "active";
+      await myServices.setSubscriptionApprovedOverride(isActive);
+
+      // Keep subscribed doctors list in sync so Doctor Details can show Chat after app restart.
+      // Primary source: GET /patients/my-doctors (returns list of doctors).
+      final myDocsRes = await patientDoctorsData.getMyDoctors(token: token);
+      await myDocsRes.fold(
+        (_) async {},
+        (rr) async {
+          final raw = rr["data"] ?? rr["doctors"] ?? rr;
+          final list = raw is List ? raw : <dynamic>[];
+          final ids = <int>{};
+          for (final e in list) {
+            final id = _extractDoctorRecordId(e);
+            if (id > 0) ids.add(id);
+          }
+          await myServices.setSubscribedDoctorIds(ids);
+        },
+      );
+
+      // Update local cached user as well (so other getters are consistent).
+      loadUser();
+    });
   }
 
   Future<void> fetchAds() async {
@@ -81,8 +166,6 @@ class HomeController extends GetxController {
     }
     try {
       user = jsonDecode(userStr) as Map<String, dynamic>;
-      print(myServices.sharedPreferences.getString("token"));
-      print(user);
     } catch (_) {
       user = null;
     }

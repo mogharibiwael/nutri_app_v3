@@ -136,6 +136,10 @@ const Map<String, String> enTranslation = {
   "tipsSports": "Sports tips",
   "tipsMyths": "Nutritional myths",
   "noTipsFound": "No tips found",
+  "adDetails": "Advertisement",
+  "adDescription": "Description",
+  "openLink": "Open link",
+  "callNow": "Call",
   "bmiCalc": "BMI Calculator",
   "bmiCalcDesc": "Calculate your BMI quickly",
   "phone": "Phone",
@@ -217,7 +221,6 @@ const Map<String, String> enTranslation = {
   "yearsOfExperience": "Years of Experience",
   "bio": "Professional Bio",
 
-  "bio": "Bio",
   "success": "Success",
   "ok": "OK",
   "sessionExpired": "Session expired, please login again",

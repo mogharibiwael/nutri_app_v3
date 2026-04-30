@@ -12,7 +12,8 @@ class TipsData {
     String? token,
     int? categoryId,
   }) async {
-    var url = "${ApiLinks.baseUrl}/public/tips?page=$page";
+    var url =
+        "${ApiLinks.baseUrl}/public/tips?page=$page";
     if (categoryId != null && categoryId > 0) {
       url += "&category_id=$categoryId";
     }

@@ -1,6 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
-import 'package:nutri_guide/feature/Home/view/home.dart';
+import 'package:nutri_guide/feature/home/view/home.dart';
 import 'package:nutri_guide/feature/auth/view/forget_password.dart';
 import 'package:nutri_guide/feature/auth/view/verify_email_page.dart';
 import 'package:nutri_guide/feature/auth/view/login.dart';
@@ -30,6 +30,7 @@ import '../../feature/tips/view/tips_main_page.dart';
 import '../../feature/tips/view/tips_page.dart';
 import '../../feature/athkar/view/spiritual_nutrition_page.dart';
 import '../../feature/athkar/view/athkar_list_page.dart';
+import '../../feature/ads/view/ad_details_page.dart';
 import '../../feature/settings/view/settings_page.dart';
 import '../../feature/settings/view/edit_profile_page.dart';
 import '../../feature/settings/view/reminders_page.dart';
@@ -122,6 +123,12 @@ abstract class AppPages {
       name: AppRoute.home,
       page: () => const HomePage(),
       bindings: [HomeBinding()],
+      middlewares: [AuthMiddleware()],
+    ),
+
+    GetPage(
+      name: AppRoute.adDetails,
+      page: () => const AdDetailsPage(),
       middlewares: [AuthMiddleware()],
     ),
 

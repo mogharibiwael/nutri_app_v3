@@ -115,6 +115,7 @@ class MyServices extends GetxService {
   // -------------------------------
   // ✅ Subscriptions cache (doctor ids)
   static const String _subsKey = "subscribed_doctor_ids";
+  static const String _subApprovedOverrideKey = "subscription_approved_override";
 
   Set<int> get subscribedDoctorIds {
     final list = sharedPreferences.getStringList(_subsKey) ?? <String>[];
@@ -158,13 +159,42 @@ class MyServices extends GetxService {
     );
   }
 
+  /// When backend exposes subscription status outside patient_profile,
+  /// allow the app to override approval state (e.g. /users-subscribed).
+  bool? get subscriptionApprovedOverride {
+    if (!sharedPreferences.containsKey(_subApprovedOverrideKey)) return null;
+    return sharedPreferences.getBool(_subApprovedOverrideKey);
+  }
+
+  Future<void> setSubscriptionApprovedOverride(bool? approved) async {
+    if (approved == null) {
+      await sharedPreferences.remove(_subApprovedOverrideKey);
+      return;
+    }
+    await sharedPreferences.setBool(_subApprovedOverrideKey, approved);
+  }
+
   /// True when a patient has a subscription that is approved by admin.
   /// Backend returns is_subscribed: true in patient_profile when approved.
-  bool get isSubscriptionApproved => isPatient && isSubscribedFromPatientProfile;
+  bool get isSubscriptionApproved {
+    if (!isPatient) return false;
+    // Prefer explicit override if present (e.g. from /users-subscribed)
+    final override = subscriptionApprovedOverride;
+    if (override != null) return override;
+    return isSubscribedFromPatientProfile;
+  }
 
   /// True when a patient has requested a subscription (uploaded invoice) but not yet approved.
-  bool get hasPendingSubscription =>
-      isPatient && subscribedDoctorIds.isNotEmpty && !isSubscribedFromPatientProfile;
+  bool get hasPendingSubscription {
+    if (!isPatient) return false;
+    // If backend says active via override, never show pending alert.
+    final override = subscriptionApprovedOverride;
+    if (override == true) return false;
+    // If override explicitly says not approved, treat as pending when any subscription exists.
+    if (override == false) return subscribedDoctorIds.isNotEmpty;
+    // Fallback to legacy patient_profile fields.
+    return subscribedDoctorIds.isNotEmpty && !isSubscribedFromPatientProfile;
+  }
 
   Future<void> setSubscribedDoctorIds(Set<int> ids) async {
     await sharedPreferences.setStringList(
@@ -178,6 +208,7 @@ class MyServices extends GetxService {
     await sharedPreferences.remove("type");
     await sharedPreferences.remove("user");
     await sharedPreferences.remove(_subsKey );
+    await sharedPreferences.remove(_subApprovedOverrideKey);
   }
 
   // ─────────────────────────────────────────────────────

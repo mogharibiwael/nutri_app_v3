@@ -131,7 +131,7 @@ class DoctorPatientsPage extends GetView<DoctorPatientsController> {
     final list = c.filteredPatients;
     if (list.isEmpty) {
       return _StateView(
-        title: c.searchQuery.isEmpty ? "No patients found" : "noTipsFound".tr,
+        title: c.searchQuery.isEmpty ? "No patients found" : "No patients found".tr,
         buttonText: "refresh".tr,
         onRetry: c.refreshPatients,
       );

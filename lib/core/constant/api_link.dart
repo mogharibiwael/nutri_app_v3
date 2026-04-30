@@ -17,6 +17,8 @@
    static const String verifyEmail = "$baseUrl/verify-email";
    static const String resendVerificationCode = "$baseUrl/resend-verification-code";
    static const String subscriptions = "$baseUrl/subscriptions";
+  /// Patient subscription status by user id (returns object)
+  static String usersSubscribedByUserId(int userId) => "$baseUrl/users-subscribed/$userId";
    static const String chatMessages = "$baseUrl/chat/messages";
    static const String chatHistory = "$baseUrl/chat/history"; // + /{doctorId} — patient's view
    static String chatConversationMessages(int patientId) => "$baseUrl/chat/conversations/$patientId/messages"; // doctor's view: messages with this patient
