@@ -199,14 +199,21 @@ class LoginController extends GetxController {
         final raw = r["data"] ?? r["doctors"] ?? r;
         final list = raw is List ? raw : <dynamic>[];
         final ids = <int>{};
+        final userMap = <int, int>{};
         for (final e in list) {
           if (e is! Map) continue;
-          final did = e["id"] ?? e["doctor_id"] ?? e["doctorId"];
+          final m = Map<String, dynamic>.from(e);
+          final did = m["id"] ?? m["doctor_id"] ?? m["doctorId"];
           final id = did is int ? did : int.tryParse(did?.toString() ?? "");
           if (id != null && id > 0) ids.add(id);
+          final uidRaw = m["user_id"] ?? m["userId"];
+          final uid = uidRaw is int ? uidRaw : int.tryParse("$uidRaw") ?? 0;
+          if (id != null && id > 0 && uid > 0) userMap[id] = uid;
         }
         // Always write (even empty) so My Diet and Chat can hide correctly.
+        await myServices.setMyDoctorsApiCount(list.length);
         await myServices.setSubscribedDoctorIds(ids);
+        await myServices.setDoctorRecordToUserIdMap(userMap);
       });
     } catch (_) {}
   }

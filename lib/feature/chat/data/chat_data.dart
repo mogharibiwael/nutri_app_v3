@@ -5,7 +5,9 @@ class ChatData {
   final Crud crud;
   ChatData(this.crud);
 
-  /// Patient: GET /chat/history/{doctorId}. Doctor: GET /chat/conversations/{patientId}/messages.
+  /// Patient: GET /chat/history/{peerUserId} — path uses the other party's **users.id** (doctor `user_id`),
+  /// same value as `receiver_id` for POST /chat/messages. Fallback: `doctorId` (doctor record id).
+  /// Doctor: GET /chat/conversations/{patientId}/messages.
   Future<dynamic> getHistory({
     required int doctorId,
     required int page,
@@ -17,8 +19,10 @@ class ChatData {
       final url = "${ApiLinks.chatConversationMessages(receiverId)}?page=$page";
       return crud.getData(url, token: token);
     }
-    final buffer = StringBuffer("${ApiLinks.chatHistory}/$doctorId?page=$page");
-    if (receiverId != null && receiverId > 0) {
+    final pathUserId =
+        (receiverId != null && receiverId! > 0) ? receiverId! : doctorId;
+    final buffer = StringBuffer("${ApiLinks.chatHistory}/$pathUserId?page=$page");
+    if (receiverId != null && receiverId! > 0) {
       buffer.write("&receiver_id=$receiverId&user_id=$receiverId&patient_id=$receiverId");
     }
     return crud.getData(buffer.toString(), token: token);

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:open_filex/open_filex.dart';
@@ -161,6 +160,18 @@ class MedicalTestsController extends GetxController {
     }
   }
 
+  bool _looksLikeJsonBody(List<int> bytes) {
+    if (bytes.isEmpty) return true;
+    var i = 0;
+    while (i < bytes.length &&
+        (bytes[i] == 32 || bytes[i] == 9 || bytes[i] == 10 || bytes[i] == 13)) {
+      i++;
+    }
+    if (i >= bytes.length) return true;
+    final b = bytes[i];
+    return b == 0x7b || b == 0x5b;
+  }
+
   Future<void> downloadAndShow(MedicalTestModel test) async {
     try {
       final dir = await getApplicationDocumentsDirectory();
@@ -168,34 +179,45 @@ class MedicalTestsController extends GetxController {
       if (!await downloadsDir.exists()) {
         await downloadsDir.create(recursive: true);
       }
-      final ext = test.image?.split('.').last ?? 'pdf';
-      final savePath = '${downloadsDir.path}/${test.name.replaceAll(RegExp(r'[^\w\-.]'), '_')}.$ext';
+      final ext = test.suggestedFileExtension;
+      final savePath =
+          '${downloadsDir.path}/${test.name.replaceAll(RegExp(r'[^\w\-.]'), '_')}.$ext';
 
       final headers = <String, String>{
-        'Accept': 'application/octet-stream,*/*',
+        'Accept': 'application/octet-stream,image/*,*/*',
         if (token != null && token!.isNotEmpty) 'Authorization': 'Bearer $token',
       };
-      final response = await http.get(
-        Uri.parse(test.downloadUrl),
-        headers: headers,
-      ).timeout(const Duration(seconds: 30));
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        Get.snackbar("error".tr, "downloadFailed".tr);
-        return;
+      for (final url in test.downloadCandidates) {
+        try {
+          var response = await http
+              .get(Uri.parse(url), headers: headers)
+              .timeout(const Duration(seconds: 45));
+          // Public storage URLs sometimes reject Bearer tokens.
+          if ((response.statusCode == 401 || response.statusCode == 403) &&
+              !url.contains('/api/')) {
+            response = await http.get(
+              Uri.parse(url),
+              headers: const {'Accept': 'application/octet-stream,image/*,*/*'},
+            ).timeout(const Duration(seconds: 45));
+          }
+          if (response.statusCode != 200 && response.statusCode != 201) {
+            continue;
+          }
+          final bytes = response.bodyBytes;
+          if (bytes.isEmpty || _looksLikeJsonBody(bytes)) {
+            continue;
+          }
+          await File(savePath).writeAsBytes(bytes);
+          await OpenFilex.open(savePath);
+          Get.snackbar("success".tr, "downloadSuccess".tr);
+          return;
+        } catch (_) {
+          continue;
+        }
       }
 
-      final bytes = response.bodyBytes;
-      if (bytes.isEmpty || (bytes.length > 0 && bytes[0] == 0x7b)) {
-        Get.snackbar("error".tr, "downloadFailed".tr);
-        return;
-      }
-
-      await File(savePath).writeAsBytes(bytes);
-      final result = await OpenFilex.open(savePath);
-      if (result.type == ResultType.done) {
-        Get.snackbar("success".tr, "downloadSuccess".tr);
-      }
+      Get.snackbar("error".tr, "downloadFailed".tr);
     } catch (e) {
       Get.snackbar("error".tr, "downloadFailed".tr);
     }

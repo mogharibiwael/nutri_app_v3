@@ -67,6 +67,18 @@ class HomeController extends GetxController {
     return 0;
   }
 
+  int _extractDoctorUserId(dynamic e) {
+    if (e is! Map) return 0;
+    final m = Map<String, dynamic>.from(e);
+    var uid = _toInt(m["user_id"] ?? m["userId"]);
+    if (uid > 0) return uid;
+    final doctor = m["doctor"];
+    if (doctor is Map) {
+      uid = _toInt(doctor["user_id"] ?? doctor["userId"]);
+    }
+    return uid;
+  }
+
   Future<void> syncSubscriptions() async {
     // Only relevant for patients/users.
     if (!myServices.isLoggedIn) return;
@@ -93,7 +105,6 @@ class HomeController extends GetxController {
       await myServices.setSubscriptionApprovedOverride(isActive);
 
       // Keep subscribed doctors list in sync so Doctor Details can show Chat after app restart.
-      // Primary source: GET /patients/my-doctors (returns list of doctors).
       final myDocsRes = await patientDoctorsData.getMyDoctors(token: token);
       await myDocsRes.fold(
         (_) async {},
@@ -101,15 +112,19 @@ class HomeController extends GetxController {
           final raw = rr["data"] ?? rr["doctors"] ?? rr;
           final list = raw is List ? raw : <dynamic>[];
           final ids = <int>{};
+          final userMap = <int, int>{};
           for (final e in list) {
             final id = _extractDoctorRecordId(e);
             if (id > 0) ids.add(id);
+            final uid = _extractDoctorUserId(e);
+            if (id > 0 && uid > 0) userMap[id] = uid;
           }
+          await myServices.setMyDoctorsApiCount(list.length);
           await myServices.setSubscribedDoctorIds(ids);
+          await myServices.setDoctorRecordToUserIdMap(userMap);
         },
       );
 
-      // Update local cached user as well (so other getters are consistent).
       loadUser();
     });
   }

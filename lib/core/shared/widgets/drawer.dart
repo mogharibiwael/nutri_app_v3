@@ -9,7 +9,9 @@ import 'package:nutri_guide/core/service/serviecs.dart';
 /// Drawer matching the design: logo header, menu items, close button.
 class HomeDrawer extends StatefulWidget {
   final dynamic controller;
-  const HomeDrawer({super.key, required this.controller});
+  /// Only logo, name, [main menu / home], and logout — e.g. BMI screen.
+  final bool homeOnly;
+  const HomeDrawer({super.key, required this.controller, this.homeOnly = false});
 
   @override
   State<HomeDrawer> createState() => _HomeDrawerState();
@@ -40,9 +42,101 @@ class _HomeDrawerState extends State<HomeDrawer> {
       AppRoute.chat,
       AppRoute.diet,
       AppRoute.calculationsHistory,
-      "/bmi",
       "/doctor-details",
     ].contains(currentRoute);
+
+    if (widget.homeOnly) {
+      return Drawer(
+        child: Container(
+          color: _drawerBg,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    children: [
+                      const SizedBox(height: 24),
+                      Center(
+                        child: GestureDetector(
+                          onTap: () => _navigate(context, "/edit-profile"),
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColor.textColor.withOpacity(0.15),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Image.asset(ImageAssets.logo, fit: BoxFit.contain),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _DrawerItem(
+                        icon: Icons.home_outlined,
+                        label: "mainMenu".tr,
+                        isSelected: currentRoute == AppRoute.home,
+                        onTap: () => _navigateToHome(context, isDoctor),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1, color: Colors.white24),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () => _logout(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4A0244),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        "logout".tr,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Drawer(
       child: Container(
@@ -133,32 +227,36 @@ class _HomeDrawerState extends State<HomeDrawer> {
                         label: "specialistDoctorInfo".tr,
                         isSelected: currentRoute == "/doctor-details",
                         onTap: () {
+                          final recordId = myServices.primaryDoctorRecordIdForChat;
+                          if (recordId == null || recordId <= 0) {
+                            _navigate(context, "/doctors");
+                            return;
+                          }
                           final u = myServices.user;
                           final p = (u?["patient_profile"] ?? u?["patientProfile"]) as dynamic;
-                          final currentDoctorId = (p is Map)
-                              ? (p["current_doctor_id"] is int
-                                  ? p["current_doctor_id"] as int
-                                  : int.tryParse("${p["current_doctor_id"]}") ?? 0)
-                              : 0;
                           final activeSub = (p is Map) ? p["active_subscription"] : null;
                           final doc = (activeSub is Map) ? activeSub["doctor"] : null;
+                          var doctorUserId = (doc is Map)
+                              ? (doc["user_id"] is int
+                                  ? doc["user_id"] as int
+                                  : int.tryParse("${doc["user_id"]}") ?? 0)
+                              : 0;
+                          if (doctorUserId <= 0) {
+                            doctorUserId = myServices.userIdForDoctorRecord(recordId) ?? 0;
+                          }
                           final doctorName = (p is Map ? p["doctor_name"] : null)?.toString() ??
                               (doc is Map ? doc["name"] : null)?.toString() ??
                               "Doctor";
-                          if (currentDoctorId > 0) {
-                            _navigate(context, "/doctor-details", arguments: {
-                              "id": currentDoctorId,
-                              "name": doctorName,
-                              "is_verified": true,
-                              "is_available": true,
-                              "rating": (doc is Map ? doc["rating"] : null) ?? "0.00",
-                              "consultation_fee": (doc is Map ? doc["consultation_fee"] : null),
-                              "user_id": (doc is Map ? doc["user_id"] : null),
-                              "gender": (doc is Map ? doc["gender"] : null),
-                            });
-                          } else {
-                            _navigate(context, "/doctors");
-                          }
+                          _navigate(context, "/doctor-details", arguments: {
+                            "id": recordId,
+                            "name": doctorName,
+                            "is_verified": true,
+                            "is_available": true,
+                            "rating": (doc is Map ? doc["rating"] : null) ?? "0.00",
+                            "consultation_fee": (doc is Map ? doc["consultation_fee"] : null),
+                            "user_id": doctorUserId > 0 ? doctorUserId : null,
+                            "gender": (doc is Map ? doc["gender"] : null),
+                          });
                         },
                       ),
                       _DrawerItem(
@@ -166,33 +264,35 @@ class _HomeDrawerState extends State<HomeDrawer> {
                         label: "chat".tr,
                         isSelected: currentRoute == AppRoute.chat,
                         onTap: () {
+                          final recordId = myServices.primaryDoctorRecordIdForChat;
+                          if (recordId == null || recordId <= 0) {
+                            _navigate(context, "/doctors");
+                            return;
+                          }
                           final u = myServices.user;
                           final p = (u?["patient_profile"] ?? u?["patientProfile"]) as dynamic;
-                          final currentDoctorId = (p is Map)
-                              ? (p["current_doctor_id"] is int
-                                  ? p["current_doctor_id"] as int
-                                  : int.tryParse("${p["current_doctor_id"]}") ?? 0)
-                              : 0;
                           final activeSub = (p is Map) ? p["active_subscription"] : null;
                           final doc = (activeSub is Map) ? activeSub["doctor"] : null;
-                          final doctorUserId = (doc is Map)
+                          var doctorUserId = (doc is Map)
                               ? (doc["user_id"] is int
                                   ? doc["user_id"] as int
                                   : int.tryParse("${doc["user_id"]}") ?? 0)
                               : 0;
+                          if (doctorUserId <= 0) {
+                            doctorUserId = myServices.userIdForDoctorRecord(recordId) ?? 0;
+                          }
                           final doctorName = (p is Map ? p["doctor_name"] : null)?.toString() ??
                               (doc is Map ? doc["name"] : null)?.toString() ??
                               "Doctor";
-                          if (currentDoctorId > 0) {
-                            _navigate(context, AppRoute.chat, arguments: {
-                              "doctor_id": currentDoctorId,
-                              "receiver_id": doctorUserId > 0 ? doctorUserId : currentDoctorId,
-                              "doctor_name": doctorName,
-                              "conversation_id": currentDoctorId,
-                            });
-                          } else {
-                            _navigate(context, "/doctors");
-                          }
+                          final receiverId =
+                              doctorUserId > 0 ? doctorUserId : recordId;
+                          _navigate(context, AppRoute.chat, arguments: {
+                            "doctor_id": recordId,
+                            "receiver_id": receiverId,
+                            "doctor_name": doctorName,
+                            "conversation_id": receiverId,
+                            "user_id": receiverId,
+                          });
                         },
                       ),
                       _DrawerItem(

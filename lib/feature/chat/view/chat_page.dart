@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/shared/widgets/drawer.dart';
@@ -201,10 +204,19 @@ class _Bubble extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        message.message,
-                        style: const TextStyle(fontSize: 15, height: 1.35),
-                      ),
+                      if (message.shouldShowImage) ...[
+                        _ChatImageBubble(
+                          message: message,
+                          authToken: myServices.token,
+                        ),
+                        if (message.message.trim().isNotEmpty)
+                          const SizedBox(height: 8),
+                      ],
+                      if (message.message.trim().isNotEmpty)
+                        Text(
+                          message.message,
+                          style: const TextStyle(fontSize: 15, height: 1.35),
+                        ),
                       const SizedBox(height: 6),
                       Row(
                         mainAxisSize: MainAxisSize.min,
@@ -269,6 +281,79 @@ class _Bubble extends StatelessWidget {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return "$h:$m";
+  }
+}
+
+/// Inline image for chat history (network) or optimistic send (local file).
+class _ChatImageBubble extends StatelessWidget {
+  final ChatMessageModel message;
+  final String? authToken;
+
+  const _ChatImageBubble({
+    required this.message,
+    this.authToken,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final m = message;
+    final local = m.attachmentLocalPath;
+
+    if (local != null && local.isNotEmpty && !kIsWeb) {
+      final f = File(local);
+      if (f.existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 220, maxWidth: 260),
+            child: Image.file(
+              f,
+              fit: BoxFit.cover,
+            ),
+          ),
+        );
+      }
+    }
+
+    final url = m.attachmentRemoteUrl;
+    if (url == null || url.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 220, maxWidth: 260),
+        child: Image.network(
+          url,
+          headers: authToken != null && authToken!.trim().isNotEmpty
+              ? {'Authorization': 'Bearer $authToken'}
+              : null,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return SizedBox(
+              height: 120,
+              width: 200,
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (_, __, ___) => Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.grey.shade200,
+            child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600),
+          ),
+        ),
+      ),
+    );
   }
 }
 

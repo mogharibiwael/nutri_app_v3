@@ -1,7 +1,9 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/shared/widgets/drawer.dart';
-import '../../../core/class/status_request.dart';
 import '../../../core/constant/theme/colors.dart';
 import '../../../core/shared/widgets/app_bar.dart';
 import '../controller/medical_files_controller.dart';
@@ -34,35 +36,6 @@ class MedicalFilesPage extends GetView<MedicalFilesController> {
   }
 
   Widget _buildBody(MedicalFilesController c) {
-    if (c.statusRequest.value == StatusRequest.loading && c.files.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (c.statusRequest.value == StatusRequest.offlineFailure) {
-      return _EmptyState(
-        icon: Icons.wifi_off_rounded,
-        title: "noInternet".tr,
-        onRetry: c.refresh,
-      );
-    }
-
-    if (c.statusRequest.value == StatusRequest.rateLimit) {
-      return _EmptyState(
-        icon: Icons.schedule_rounded,
-        title: "tooManyRequests".tr,
-        onRetry: c.refresh,
-      );
-    }
-
-    if (c.statusRequest.value == StatusRequest.serverFailure ||
-        c.statusRequest.value == StatusRequest.failure) {
-      return _EmptyState(
-        icon: Icons.error_outline_rounded,
-        title: "serverError".tr,
-        onRetry: c.refresh,
-      );
-    }
-
     if (c.files.isEmpty) {
       return _EmptyState(
         icon: Icons.folder_open_outlined,
@@ -77,9 +50,11 @@ class MedicalFilesPage extends GetView<MedicalFilesController> {
         padding: const EdgeInsets.all(16),
         itemCount: c.files.length,
         itemBuilder: (context, index) {
+          final f = c.files[index];
           return _FileCard(
-            fileName: c.files[index].fileName,
-            onDownload: () => c.downloadAndShow(c.files[index]),
+            file: f,
+            displayName: c.displayTitle(f),
+            onOpen: () => c.downloadAndShow(f),
           );
         },
       ),
@@ -88,17 +63,43 @@ class MedicalFilesPage extends GetView<MedicalFilesController> {
 }
 
 class _FileCard extends StatelessWidget {
-  final String fileName;
-  final VoidCallback onDownload;
+  final MedicalFileModel file;
+  final String displayName;
+  final VoidCallback onOpen;
 
   const _FileCard({
-    required this.fileName,
-    required this.onDownload,
+    required this.file,
+    required this.displayName,
+    required this.onOpen,
   });
+
+  Widget? _leadingThumb() {
+    if (!file.showsImageThumbnail || kIsWeb) return null;
+    final p = file.localDiskPath;
+    if (p == null) return null;
+    final f = File(p);
+    if (!f.existsSync()) return null;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        width: 56,
+        height: 56,
+        child: Image.file(
+          f,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Icon(
+            Icons.image_not_supported_outlined,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isAr = Get.locale?.languageCode == 'ar';
+    final thumb = _leadingThumb();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -114,13 +115,17 @@ class _FileCard extends StatelessWidget {
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
+            if (!isAr && thumb != null) ...[
+              thumb,
+              const SizedBox(width: 12),
+            ],
             if (!isAr)
               Expanded(
                 child: Text(
-                  fileName,
+                  displayName,
                   style: TextStyle(
                     color: Colors.grey.shade800,
                     fontSize: 16,
@@ -131,18 +136,18 @@ class _FileCard extends StatelessWidget {
                 ),
               ),
             IconButton(
-              onPressed: onDownload,
+              onPressed: onOpen,
               icon: Icon(
-                Icons.download_rounded,
+                file.isLocalDeviceFile ? Icons.open_in_new_rounded : Icons.download_rounded,
                 color: AppColor.primary,
                 size: 28,
               ),
-              tooltip: "download".tr,
+              tooltip: file.isLocalDeviceFile ? "openFile".tr : "download".tr,
             ),
             if (isAr)
               Expanded(
                 child: Text(
-                  fileName,
+                  displayName,
                   style: TextStyle(
                     color: Colors.grey.shade800,
                     fontSize: 16,
@@ -153,6 +158,10 @@ class _FileCard extends StatelessWidget {
                   textAlign: TextAlign.end,
                 ),
               ),
+            if (isAr && thumb != null) ...[
+              const SizedBox(width: 12),
+              thumb,
+            ],
           ],
         ),
       ),

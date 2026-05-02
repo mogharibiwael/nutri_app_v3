@@ -1,15 +1,8 @@
  class ApiLinks {
-   // static const String baseUrl =
-   //     "https://health-system-backend-c9pb.onrender.com/api";
    static const String baseUrl =
           "https://health-system-backend-l7m5.onrender.com/api";
-
-   /// Base URL for static assets (images) - strip /api from baseUrl
    static String get storageBase =>
        baseUrl.replaceFirst(RegExp(r'/api$'), '').replaceFirst(RegExp(r'/$'), '');
-  // static const String baseUrl =
-  //      "http://10.0.2.2:8000/api";
-   
    // auth url
    static const String register = "$baseUrl/register";
    static const String login = "$baseUrl/login";
@@ -17,10 +10,12 @@
    static const String verifyEmail = "$baseUrl/verify-email";
    static const String resendVerificationCode = "$baseUrl/resend-verification-code";
    static const String subscriptions = "$baseUrl/subscriptions";
+  /// Create / list user subscriptions (your backend endpoint)
+  static const String usersSubscribed = "$baseUrl/users-subscribed";
   /// Patient subscription status by user id (returns object)
   static String usersSubscribedByUserId(int userId) => "$baseUrl/users-subscribed/$userId";
    static const String chatMessages = "$baseUrl/chat/messages";
-   static const String chatHistory = "$baseUrl/chat/history"; // + /{doctorId} — patient's view
+   static const String chatHistory = "$baseUrl/chat/history"; // + /{peerUserId} — patient's view (doctor users.id)
    static String chatConversationMessages(int patientId) => "$baseUrl/chat/conversations/$patientId/messages"; // doctor's view: messages with this patient
    static const String doctorPatients = "$baseUrl/doctor/patients";
    static const String doctorProfile = "$baseUrl/doctor/profile"; // GET current doctor (auth)

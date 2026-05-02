@@ -11,13 +11,14 @@ import '../../../core/service/notification_service.dart';
 import '../../../core/service/serviecs.dart';
 import '../data/chat_data.dart';
 import '../model/chat_message_model.dart';
+import '../../medical_files/medical_files_local_storage.dart';
 
 class ChatController extends GetxController {
   final MyServices myServices = Get.find();
   final ChatData chatData = ChatData(Get.find());
 
-  late final int doctorId;     // used for /chat/history/{doctorId}
-  late int receiverId;         // REQUIRED by POST /chat/messages
+  late final int doctorId;     // doctor record id (messages / UI)
+  late int receiverId;         // doctor's users.id — REQUIRED by POST /chat/messages; GET /history/{this}
   String doctorName = "";
 
   int myUserId = 0;
@@ -66,16 +67,20 @@ class ChatController extends GetxController {
         ? args["receiver_id"]
         : int.tryParse("${args["receiver_id"]}") ?? 0;
 
+    final uidArg = args["user_id"];
+    final parsedUserId = uidArg is int ? uidArg : int.tryParse("$uidArg") ?? 0;
+    if (receiverId == 0 && parsedUserId > 0) receiverId = parsedUserId;
+
     conversationId = (args["conversation_id"] is int)
         ? args["conversation_id"]
         : int.tryParse("${args["conversation_id"]}") ?? 0;
 
-    if (conversationId == 0) conversationId = doctorId;
-
-    // ✅ Fallback for receiver_id
-    // Your backend error says receiver_id is required, and history returns doctor_id.
-    // So for patient->doctor messages, receiver_id is most likely doctorId.
+    // ✅ Fallback for receiver_id (doctor users.id for API path + POST)
     if (receiverId == 0) receiverId = doctorId;
+
+    if (conversationId == 0) {
+      conversationId = receiverId > 0 ? receiverId : doctorId;
+    }
 
     _loadMyUserId();
     loadHistory(first: true).then((_) {
@@ -209,23 +214,29 @@ class ChatController extends GetxController {
       return;
     }
 
-    final messageText = text.isEmpty ? "(Attachment)" : text;
+    final fileToSend = attachedFilePath;
+    final fileNameToSend = attachedFileName;
+    final isImageFile = hasFile && _isImageFilePath(fileToSend, fileNameToSend);
+    final apiMessage = text.isNotEmpty ? text : (hasFile ? "(Attachment)" : "");
 
-    // optimistic
+    // optimistic (images show as preview; other files as text + name)
+    final bubbleText = hasFile && !isImageFile
+        ? '${text.isEmpty ? "(Attachment)" : text} 📎 ${fileNameToSend ?? "file"}'
+        : text;
+
     final optimistic = ChatMessageModel(
       id: -DateTime.now().millisecondsSinceEpoch,
       userId: myUserId,
       doctorId: doctorId,
-      message: hasFile ? "$messageText 📎 ${attachedFileName ?? 'file'}" : messageText,
+      message: bubbleText,
       createdAt: DateTime.now(),
       isMe: true,
       pending: true,
+      attachmentLocalPath: isImageFile ? fileToSend : null,
     );
 
     messages.add(optimistic);
     messageController.clear();
-    final fileToSend = attachedFilePath;
-    final fileNameToSend = attachedFileName;
     clearAttachment();
     update();
     _scrollToBottom();
@@ -239,7 +250,7 @@ class ChatController extends GetxController {
       final res = await chatData.sendMessageWithFile(
         conversationId: conversationId,
         receiverId: receiverId,
-        message: messageText,
+        message: apiMessage,
         filePath: fileToSend,
         fileName: fileNameToSend,
         token: myServices.token,
@@ -252,8 +263,16 @@ class ChatController extends GetxController {
           Get.snackbar("Error", _mapStatus(l));
         },
         (r) async {
-          // If a patient is sending a file, keep a copy in medical-files (الملفات المساعدة)
-          if (!isCurrentUserDoctor && fileToSend != null) {
+          // Patient: save copy on device for Help → Medical files list (images show as thumbnails).
+          if (!isCurrentUserDoctor) {
+            try {
+              await MedicalFilesLocalStorage.copyFromChatUpload(
+                fileToSend,
+                fileNameToSend,
+              );
+            } catch (e) {
+              debugPrint("Local medical_files copy: $e");
+            }
             try {
               await chatData.uploadMedicalFile(
                 filePath: fileToSend,
@@ -262,7 +281,7 @@ class ChatController extends GetxController {
                 token: myServices.token,
               );
             } catch (e) {
-              debugPrint("Failed to copy file to medical files: $e");
+              debugPrint("Failed to upload medical file: $e");
             }
           }
           sendStatus = StatusRequest.success;
@@ -274,7 +293,7 @@ class ChatController extends GetxController {
       final res = await chatData.sendMessage(
         conversationId: conversationId,
         receiverId: receiverId,
-        message: messageText,
+        message: apiMessage,
         token: myServices.token,
       );
       res.fold(
@@ -378,8 +397,27 @@ class ChatController extends GetxController {
      notificationService.showNow(
        id: msg.id.hashCode.abs() % 2147483647,
        title: isCurrentUserDoctor ? "New message from patient" : (doctorName.isNotEmpty ? doctorName : "New message"),
-       body: msg.message,
+       body: msg.shouldShowImage
+           ? (msg.message.trim().isNotEmpty ? "📷 ${msg.message}" : "📷")
+           : msg.message,
      );
+  }
+
+  static bool _isImageFilePath(String? filePath, String? displayName) {
+    bool byName(String? n) {
+      if (n == null || n.isEmpty) return false;
+      final lower = n.toLowerCase();
+      return lower.endsWith(".png") ||
+          lower.endsWith(".jpg") ||
+          lower.endsWith(".jpeg") ||
+          lower.endsWith(".gif") ||
+          lower.endsWith(".webp") ||
+          lower.endsWith(".bmp");
+    }
+    if (byName(displayName)) return true;
+    if (filePath == null || filePath.isEmpty) return false;
+    final base = filePath.replaceAll(r"\", "/").split("/").last;
+    return byName(base);
   }
 
 

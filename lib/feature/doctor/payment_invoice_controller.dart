@@ -4,7 +4,6 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/constant/theme/colors.dart';
 import '../../../core/class/status_request.dart';
-import '../../../core/routes/app_route.dart';
 import '../../../core/service/serviecs.dart';
 import '../chat/data/patient_profile_data.dart';
 import 'controller/doctor_details_controller.dart';
@@ -114,6 +113,18 @@ class PaymentInvoiceController extends GetxController {
         Get.snackbar("Error", "subscribeFailed".tr);
       },
       (r) async {
+        // Crud always returns Right with _statusCode; treat non-2xx as failure.
+        final code = r["_statusCode"];
+        final statusCode = code is int ? code : int.tryParse(code?.toString() ?? "");
+        final ok = statusCode == null || statusCode == 200 || statusCode == 201;
+        if (!ok) {
+          statusRequest = StatusRequest.failure;
+          update();
+          final msg = (r["message"] ?? r["error"] ?? "subscribeFailed".tr).toString();
+          Get.snackbar("Error", msg);
+          return;
+        }
+
         statusRequest = StatusRequest.success;
         await myServices.markSubscribedDoctor(doctor.id);
 

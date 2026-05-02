@@ -113,6 +113,17 @@ class DoctorDetailsController extends GetxController {
     return 0;
   }
 
+  int _extractDoctorUserId(dynamic e) {
+    if (e is! Map) return 0;
+    var uid = _toInt(e["user_id"] ?? e["userId"]);
+    if (uid > 0) return uid;
+    final doctor = e["doctor"];
+    if (doctor is Map) {
+      uid = _toInt(doctor["user_id"] ?? doctor["userId"]);
+    }
+    return uid;
+  }
+
   Future<void> _syncMyDoctorsAndRefreshState() async {
     // Only for logged-in patients/users
     if (!myServices.isLoggedIn) return;
@@ -128,11 +139,16 @@ class DoctorDetailsController extends GetxController {
         final raw = r["data"] ?? r["doctors"] ?? r;
         final list = raw is List ? raw : <dynamic>[];
         final ids = <int>{};
+        final userMap = <int, int>{};
         for (final e in list) {
           final id = _extractDoctorRecordId(e);
           if (id > 0) ids.add(id);
+          final uid = _extractDoctorUserId(e);
+          if (id > 0 && uid > 0) userMap[id] = uid;
         }
+        await myServices.setMyDoctorsApiCount(list.length);
         await myServices.setSubscribedDoctorIds(ids);
+        await myServices.setDoctorRecordToUserIdMap(userMap);
       },
     );
 
@@ -360,20 +376,27 @@ class DoctorDetailsController extends GetxController {
         Get.snackbar("Error", "Request failed: $l");
       },
           (r) async {
+        final code = r["_statusCode"];
+        final statusCode = code is int ? code : int.tryParse(code?.toString() ?? "");
+        final ok = statusCode == null || statusCode == 200 || statusCode == 201;
+        if (!ok) {
+          statusRequest = StatusRequest.failure;
+          update();
+          final msg = (r["message"] ?? r["error"] ?? "subscribeFailed".tr).toString();
+          Get.snackbar("Error", msg);
+          return;
+        }
+
         statusRequest = StatusRequest.success;
 
-        // ✅ اعتبره نجاح لو رجع id أو status (حسب response عندك)
-        // لو عندك حالات أخرى مثل 422 يمكنك فحص r["errors"] هنا
         await myServices.markSubscribedDoctor(doctor.id);
         isSubscribed = true;
 
         update();
 
-        Get.snackbar("Success", "Subscription created successfully");
-        final ok = await Get.toNamed(AppRoute.patientProfile);
+        Get.snackbar("Success", r["message"]?.toString() ?? "Subscription created successfully");
+        await Get.toNamed(AppRoute.patientProfile);
 
-
-        // اختياري: افتح الشات مباشرة
         goToChat();
       },
     );
@@ -389,7 +412,8 @@ class DoctorDetailsController extends GetxController {
       "doctor_id": doctor.id,
       "receiver_id": receiverId,
       "doctor_name": doctor.name,
-      "conversation_id": doctor.id,
+      // Backend history: GET /chat/history/{doctor_users.id}; POST messages use same id as conversation peer.
+      "conversation_id": receiverId,
     });
   }
 

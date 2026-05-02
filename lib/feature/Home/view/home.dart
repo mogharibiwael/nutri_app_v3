@@ -8,6 +8,7 @@ import 'package:nutri_guide/core/shared/widgets/app_bar.dart';
 import 'package:nutri_guide/core/shared/widgets/drawer.dart';
 import 'package:nutri_guide/feature/ads/model/ad_model.dart';
 import 'package:nutri_guide/core/routes/app_route.dart';
+import 'package:nutri_guide/core/service/serviecs.dart';
 
 import 'package:nutri_guide/feature/home/controller/home_controller.dart';
 
@@ -19,6 +20,7 @@ class HomePage extends GetView<HomeController> {
 
   @override
   Widget build(BuildContext context) {
+    
     return GetBuilder<HomeController>(
       builder: (_) => SafeArea(
         child: Scaffold(
@@ -111,8 +113,9 @@ class HomePage extends GetView<HomeController> {
                           const SizedBox(height: 12),
                         ],
 
-                        // Diets / Virtual Clinic: for approved patients
-                        if (!controller.isDoctor && controller.isSubscribedApproved) ...[
+                        // Diets / Virtual Clinic: approved patients or my-doctors has doctors
+                        if (!controller.isDoctor &&
+                            Get.find<MyServices>().canAccessPatientDiet) ...[
                           _HomeMenuButton(
                             title: "diets".tr,
                             icon: Icons.local_hospital_outlined,
@@ -139,12 +142,7 @@ class HomePage extends GetView<HomeController> {
                           icon: Icons.medical_services_outlined,
                           onTap: controller.goDoctors,
                         ),
-                        const SizedBox(height: 12),
-                        _HomeMenuButton(
-                          title: "settings".tr,
-                          icon: Icons.settings_outlined,
-                          onTap: controller.goSettings,
-                        ),
+
                         const SizedBox(height: 12),
                         _HomeMenuButton(
                           title: "stepCounter".tr,
@@ -157,6 +155,12 @@ class HomePage extends GetView<HomeController> {
                           icon: Icons.self_improvement,
                           onTap: controller.goSpiritualNutrition,
                         ),
+                          const SizedBox(height: 12),
+                          _HomeMenuButton(
+                            title: "settings".tr,
+                            icon: Icons.settings_outlined,
+                            onTap: controller.goSettings,
+                          ),
                         const SizedBox(height: 12),
                         _HomeMenuButton(
                           title: "logout".tr,

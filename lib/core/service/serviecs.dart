@@ -116,6 +116,9 @@ class MyServices extends GetxService {
   // ✅ Subscriptions cache (doctor ids)
   static const String _subsKey = "subscribed_doctor_ids";
   static const String _subApprovedOverrideKey = "subscription_approved_override";
+  static const String _myDoctorsApiCountKey = "my_doctors_api_count";
+  /// JSON map: doctor table id -> doctor's users.id (from GET /patients/my-doctors).
+  static const String _doctorRecordToUserIdKey = "doctor_record_to_user_id_json";
 
   Set<int> get subscribedDoctorIds {
     final list = sharedPreferences.getStringList(_subsKey) ?? <String>[];
@@ -174,6 +177,54 @@ class MyServices extends GetxService {
     await sharedPreferences.setBool(_subApprovedOverrideKey, approved);
   }
 
+  /// Last `data` length from GET /patients/my-doctors (-1 = not synced yet).
+  int get myDoctorsApiCount {
+    if (!sharedPreferences.containsKey(_myDoctorsApiCountKey)) return -1;
+    return sharedPreferences.getInt(_myDoctorsApiCountKey) ?? 0;
+  }
+
+  Future<void> setMyDoctorsApiCount(int count) async {
+    await sharedPreferences.setInt(_myDoctorsApiCountKey, count);
+  }
+
+  /// Cached login user id for a doctor **record** id (for chat receiver_id / history path).
+  int? userIdForDoctorRecord(int doctorRecordId) {
+    if (doctorRecordId <= 0) return null;
+    final s = sharedPreferences.getString(_doctorRecordToUserIdKey);
+    if (s == null || s.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(s) as Map<String, dynamic>;
+      final v = decoded["$doctorRecordId"];
+      if (v is int) return v;
+      return int.tryParse("$v");
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setDoctorRecordToUserIdMap(Map<int, int> recordToUser) async {
+    if (recordToUser.isEmpty) {
+      await sharedPreferences.remove(_doctorRecordToUserIdKey);
+      return;
+    }
+    final jsonMap = <String, int>{
+      for (final e in recordToUser.entries) "${e.key}": e.value,
+    };
+    await sharedPreferences.setString(
+      _doctorRecordToUserIdKey,
+      jsonEncode(jsonMap),
+    );
+  }
+
+  /// [patient_profile.current_doctor_id] if set, else first id from my-doctors sync.
+  int? get primaryDoctorRecordIdForChat {
+    final cur = currentDoctorIdFromPatientProfile;
+    if (cur != null && cur > 0) return cur;
+    final subs = subscribedDoctorIds.toList()..sort();
+    if (subs.isEmpty) return null;
+    return subs.first;
+  }
+
   /// True when a patient has a subscription that is approved by admin.
   /// Backend returns is_subscribed: true in patient_profile when approved.
   bool get isSubscriptionApproved {
@@ -184,9 +235,18 @@ class MyServices extends GetxService {
     return isSubscribedFromPatientProfile;
   }
 
+  /// Show patient diet / "My Diet" when profile is approved or GET /patients/my-doctors returned doctors.
+  bool get canAccessPatientDiet {
+    if (!isPatient) return false;
+    if (isSubscriptionApproved) return true;
+    return myDoctorsApiCount > 0;
+  }
+
   /// True when a patient has requested a subscription (uploaded invoice) but not yet approved.
   bool get hasPendingSubscription {
     if (!isPatient) return false;
+    // If my-doctors returned at least one doctor, hide "pending approval" home banner.
+    if (myDoctorsApiCount > 0) return false;
     // If backend says active via override, never show pending alert.
     final override = subscriptionApprovedOverride;
     if (override == true) return false;
@@ -209,6 +269,8 @@ class MyServices extends GetxService {
     await sharedPreferences.remove("user");
     await sharedPreferences.remove(_subsKey );
     await sharedPreferences.remove(_subApprovedOverrideKey);
+    await sharedPreferences.remove(_myDoctorsApiCountKey);
+    await sharedPreferences.remove(_doctorRecordToUserIdKey);
   }
 
   // ─────────────────────────────────────────────────────

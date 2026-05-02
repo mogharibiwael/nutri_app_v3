@@ -15,7 +15,7 @@ class BmiPage extends GetView<BmiController> {
     return GetBuilder<BmiController>(
       builder: (c) => SafeArea(
           child: Scaffold(
-            drawer: HomeDrawer(controller: c),
+            drawer: HomeDrawer(controller: c, homeOnly: true),
             appBar: CustomAppBar(
               title: "bmiBmrCalc".tr,
               showBackButton: true,
