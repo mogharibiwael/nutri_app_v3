@@ -364,6 +364,7 @@ const Map<String, String> enTranslation = {
   "day": "Day",
   "notes": "Notes",
   "noMeals": "No meals found",
+  "mealFoodChoicesFromDoctor": "Food choices from your doctor",
   "createDietPlan": "Create Diet Plan",
   "dietPeriods": "Diet Periods",
   "breakfast": "Breakfast",

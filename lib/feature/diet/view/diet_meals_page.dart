@@ -14,9 +14,15 @@ class DietMealsPage extends GetView<DietController> {
   Widget build(BuildContext context) {
     return GetBuilder<DietController>(
       builder: (c) {
-        // Load meals if not already loaded
+        // Never call loadMeals() synchronously during build — it triggers update().
         if (c.meals.isEmpty && c.mealsStatusRequest != StatusRequest.loading) {
-          c.loadMeals();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final ctrl = Get.find<DietController>();
+            if (ctrl.meals.isEmpty &&
+                ctrl.mealsStatusRequest != StatusRequest.loading) {
+              ctrl.loadMeals();
+            }
+          });
         }
 
         return SafeArea(
@@ -148,15 +154,24 @@ class DietMealsPage extends GetView<DietController> {
                                               fontSize: 13,
                                             ),
                                           ),
-                                        if (meal.servingSummary != null &&
-                                            meal.servingSummary!.isNotEmpty &&
-                                            meal.servingSummary != "-") ...[
+                                        if (meal.patientFoodNotes != null &&
+                                            meal.patientFoodNotes!.trim().isNotEmpty) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            "mealFoodChoicesFromDoctor".tr,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.grey.shade600,
+                                            ),
+                                          ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            meal.servingSummary!,
+                                            meal.patientFoodNotes!,
                                             style: TextStyle(
                                               color: AppColor.primary,
-                                              fontSize: 12,
+                                              fontSize: 14,
+                                              height: 1.35,
                                             ),
                                           ),
                                         ],

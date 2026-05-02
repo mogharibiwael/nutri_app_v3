@@ -80,6 +80,8 @@ class DietController extends GetxController {
   }
 
   Future<void> loadMeals() async {
+    if (mealsStatusRequest == StatusRequest.loading) return;
+
     mealsStatusRequest = StatusRequest.loading;
     update();
 

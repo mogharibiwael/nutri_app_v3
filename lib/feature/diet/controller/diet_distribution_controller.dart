@@ -4,6 +4,7 @@ import '../../../../doctorApp/feature/home/model/patient_model.dart';
 import '../model/exchange_model.dart';
 import '../model/portion_categories_model.dart';
 import '../../../../core/service/diet_calculator_service.dart';
+import '../service/diet_payload_builder.dart';
 
 /// Distribution of daily servings across meal periods.
 /// Keys: meal_type (breakfast, lunch, dinner, firstSnack, secondSnack, thirdSnack, extraSnack_X)
@@ -172,6 +173,8 @@ class DietDistributionController extends GetxController {
   }
 
   String mealKeyToLabel(String key) {
+    final custom = DietPayloadBuilder.userEnteredMealName(key, periods);
+    if (custom != null && custom.isNotEmpty) return custom;
     if (key == "breakfast") return "breakfast".tr;
     if (key == "lunch") return "lunch".tr;
     if (key == "dinner") return "dinner".tr;

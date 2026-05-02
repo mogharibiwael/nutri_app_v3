@@ -15,7 +15,8 @@ enum MealType {
 }
 
 extension MealTypeExt on MealType {
-  String labelFor(DietPeriodModel? period) {
+  /// Translated default (no user override) — used as hint under the name field.
+  String defaultLabel({int? extraSnackIndex}) {
     switch (this) {
       case MealType.breakfast:
         return "breakfast".tr;
@@ -30,9 +31,29 @@ extension MealTypeExt on MealType {
       case MealType.thirdSnack:
         return "thirdSnack".tr;
       case MealType.extraSnack:
-        if (period?.customName != null && period!.customName!.trim().isNotEmpty) {
-          return period.customName!.trim();
-        }
+        final idx = extraSnackIndex ?? 1;
+        return "${"extraSnack".tr} $idx";
+    }
+  }
+
+  String labelFor(DietPeriodModel? period) {
+    if (period?.customName != null && period!.customName!.trim().isNotEmpty) {
+      return period.customName!.trim();
+    }
+    switch (this) {
+      case MealType.breakfast:
+        return "breakfast".tr;
+      case MealType.lunch:
+        return "lunch".tr;
+      case MealType.dinner:
+        return "dinner".tr;
+      case MealType.firstSnack:
+        return "firstSnack".tr;
+      case MealType.secondSnack:
+        return "secondSnack".tr;
+      case MealType.thirdSnack:
+        return "thirdSnack".tr;
+      case MealType.extraSnack:
         final idx = period?.extraSnackIndex ?? 1;
         return "${"extraSnack".tr} $idx";
     }
@@ -140,7 +161,6 @@ class DietPeriodsController extends GetxController {
 
   void updatePeriodName(int index, String name) {
     if (index < 0 || index >= periods.length) return;
-    if (periods[index].mealType != MealType.extraSnack) return;
     periods[index] = periods[index].copyWith(customName: name.isEmpty ? null : name);
     update();
   }

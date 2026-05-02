@@ -23,6 +23,29 @@ class DietPayloadBuilder {
     return keys;
   }
 
+  /// Name the doctor typed for this meal period (aligned with [mealKeys] / distribution keys).
+  static String? userEnteredMealName(
+    String mealKey,
+    List<Map<String, dynamic>> periods,
+  ) {
+    final mealKeys = _getMealKeys(periods);
+    final i = mealKeys.indexOf(mealKey);
+    if (i < 0 || i >= periods.length) return null;
+    final cn = periods[i]["custom_name"]?.toString().trim();
+    if (cn == null || cn.isEmpty) return null;
+    return cn;
+  }
+
+  static String _apiMealName(String mealKey, Map<String, dynamic>? period) {
+    final cn = period?["custom_name"]?.toString().trim();
+    if (cn != null && cn.isNotEmpty) return cn;
+    if (mealKey.startsWith("extra_")) return mealKey.substring(6);
+    if (mealKey.startsWith("extraSnack_")) {
+      return "Snack ${mealKey.substring(11)}";
+    }
+    return mealKey;
+  }
+
   /// Compute macros for a single meal from serving counts
   static (double carbs, double protein, double fat, double calories) _computeMealMacros(
     Map<String, double> servings,
@@ -95,22 +118,20 @@ class DietPayloadBuilder {
     final mealKeys = _getMealKeys(periods);
     final meals = <Map<String, dynamic>>[];
 
-    for (final key in mealKeys) {
+    for (var i = 0; i < mealKeys.length; i++) {
+      final key = mealKeys[i];
+      final period = i < periods.length ? periods[i] : null;
       final servings = distribution[key] ?? {};
       final (carbs, protein, fat, calories) = _computeMealMacros(servings, exchangePlan);
 
       String mealType = "extraSnack";
-      String name = key;
-      if (key.startsWith("extra_")) {
+      if (key.startsWith("extra_") || key.startsWith("extraSnack_")) {
         mealType = "extraSnack";
-        name = key.substring(6);
-      } else if (key.startsWith("extraSnack_")) {
-        mealType = "extraSnack";
-        name = "Snack ${key.substring(11)}";
       } else {
         mealType = key;
-        name = key;
       }
+
+      final name = _apiMealName(key, period);
 
       final items = mealItems?[key];
       meals.add({

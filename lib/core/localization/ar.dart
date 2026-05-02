@@ -362,6 +362,7 @@ const Map<String, String> arTranslation = {
   "day": "اليوم",
   "notes": "ملاحظات",
   "noMeals": "لا توجد وجبات",
+  "mealFoodChoicesFromDoctor": "خيارات الطعام من الطبيب",
   "createDietPlan": "إنشاء خطة حمية",
   "dietPeriods": "فترات الحمية",
   "breakfast": "وجبة الافطار",

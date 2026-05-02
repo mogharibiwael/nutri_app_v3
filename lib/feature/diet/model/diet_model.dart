@@ -124,22 +124,45 @@ class DietMealModel {
   factory DietMealModel.fromJson(Map<String, dynamic> json) {
     int toInt(dynamic v) {
       if (v is int) return v;
-      return int.tryParse(v.toString()) ?? 0;
+      return int.tryParse(v.toString().trim()) ?? 0;
     }
 
     // Support both /diets and /diet-plans API formats
     // diet-plans: category=Breakfast/Lunch/Dinner/Snack, meal_type=drink/side/main
+    // GET my-diet/meals: { meal: "breakfast - Label", quantity: "...", notes: "...", time: ... }
     final category = json["category"]?.toString();
-    final mealTypeRaw = (json["meal_type"] ?? category ?? "").toString();
-    final mealType = _categoryToMealType(category) ?? mealTypeRaw;
-    final mealName = (json["meal_name"] ?? json["name"] ?? "").toString();
+    final combinedMeal = json["meal"]?.toString().trim() ?? "";
+
+    String mealType;
+    String mealName;
+
+    if (combinedMeal.isNotEmpty) {
+      final parsed = _parseCombinedMealField(combinedMeal);
+      mealType = parsed.$1;
+      mealName = parsed.$2;
+    } else {
+      final mealTypeRaw = (json["meal_type"] ?? category ?? "").toString();
+      mealType = _categoryToMealType(category) ?? mealTypeRaw;
+      mealName = (json["meal_name"] ?? json["name"] ?? "").toString();
+    }
+
     final calories = toInt(json["calories"] ?? json["energy"] ?? 0);
-    final servingSummary = json["serving_summary"]?.toString() ?? json["serving"]?.toString();
+    // Patient list API uses `quantity`; create flow uses serving/serving_summary.
+    final servingSummary = _firstNonEmptyString(json, const [
+      "quantity",
+      "serving_summary",
+      "serving",
+      "serving_text",
+      "food_items",
+      "meal_notes",
+      "notes",
+    ]);
     final description = json["describtion"]?.toString() ?? json["description"]?.toString();
 
+    final rawDay = toInt(json["day_number"] ?? 1);
     return DietMealModel(
       id: toInt(json["id"] ?? 0),
-      dayNumber: toInt(json["day_number"] ?? 0),
+      dayNumber: rawDay <= 0 ? 1 : rawDay,
       mealType: mealType.isNotEmpty ? mealType : "snack",
       mealName: mealName.isNotEmpty ? mealName : (json["name"] ?? "").toString(),
       calories: calories,
@@ -148,8 +171,39 @@ class DietMealModel {
       carbsG: json["carbs_g"] != null ? toInt(json["carbs_g"]) : (json["carbo"] != null ? toInt(json["carbo"]) : null),
       proteinG: json["protein_g"] != null ? toInt(json["protein_g"]) : (json["protin"] != null ? toInt(json["protin"]) : null),
       fatG: json["fat_g"] != null ? toInt(json["fat_g"]) : (json["fat"] != null ? toInt(json["fat"]) : null),
-      mealTime: json["meal_time"]?.toString(),
+      mealTime: json["time"]?.toString() ?? json["meal_time"]?.toString(),
     );
+  }
+
+  /// API format `"breakfast - Morning"` or `"firstSnack - تمرة"`.
+  static (String, String) _parseCombinedMealField(String combined) {
+    const sep = " - ";
+    final idx = combined.indexOf(sep);
+    if (idx <= 0) {
+      return (combined, combined);
+    }
+    final left = combined.substring(0, idx).trim();
+    final right = combined.substring(idx + sep.length).trim();
+    return (left.isNotEmpty ? left : "snack", right.isNotEmpty ? right : left);
+  }
+
+  static String? _firstNonEmptyString(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final v = json[key]?.toString().trim();
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  /// Text the doctor entered for this meal (exchange summary + food lines), for patient UI.
+  String? get patientFoodNotes {
+    final parts = <String>[];
+    final s = servingSummary?.trim();
+    if (s != null && s.isNotEmpty && s != '-') parts.add(s);
+    final d = description?.trim();
+    if (d != null && d.isNotEmpty) parts.add(d);
+    if (parts.isEmpty) return null;
+    return parts.join('\n');
   }
 
   static String? _categoryToMealType(String? category) {

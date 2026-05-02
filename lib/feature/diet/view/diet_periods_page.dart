@@ -54,12 +54,13 @@ class DietPeriodsPage extends GetView<DietPeriodsController> {
                         padding: const EdgeInsets.only(bottom: 12),
                         child: _PeriodRow(
                           label: period.mealType.labelFor(period),
+                          nameHint: period.mealType.defaultLabel(
+                            extraSnackIndex: period.extraSnackIndex,
+                          ),
                           time: period.time,
-                          isEditableName: isExtra,
+                          isEditableName: true,
                           customName: period.customName,
-                          onNameChanged: isExtra
-                              ? (name) => c.updatePeriodName(i, name)
-                              : null,
+                          onNameChanged: (name) => c.updatePeriodName(i, name),
                           onTimeTap: () => _pickTime(context, c, i),
                           onRemove: isExtra
                               ? () => c.removeExtraSnack(i)
@@ -124,6 +125,8 @@ class DietPeriodsPage extends GetView<DietPeriodsController> {
 
 class _PeriodRow extends StatelessWidget {
   final String label;
+  /// Shown as hint when the name field is editable (default meal label, not the typed value).
+  final String nameHint;
   final TimeOfDay time;
   final bool isEditableName;
   final String? customName;
@@ -133,6 +136,7 @@ class _PeriodRow extends StatelessWidget {
 
   const _PeriodRow({
     required this.label,
+    required this.nameHint,
     required this.time,
     this.isEditableName = false,
     this.customName,
@@ -164,7 +168,7 @@ class _PeriodRow extends StatelessWidget {
             child: isEditableName && onNameChanged != null
                 ? _EditableNameField(
                     initialValue: customName ?? label,
-                    hint: label,
+                    hint: nameHint,
                     onChanged: onNameChanged!,
                   )
                 : Text(

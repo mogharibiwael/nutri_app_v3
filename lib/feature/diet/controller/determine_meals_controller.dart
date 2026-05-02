@@ -5,6 +5,7 @@ import '../../../../doctorApp/feature/home/model/patient_model.dart';
 import '../../../core/service/diet_calculator_service.dart';
 import '../model/exchange_model.dart';
 import '../model/portion_categories_model.dart';
+import '../service/diet_payload_builder.dart';
 
 class DetermineMealsController extends GetxController {
   int? patientId;
@@ -63,6 +64,8 @@ class DetermineMealsController extends GetxController {
   List<String> getMealKeys() => distribution.keys.toList();
 
   String mealKeyToLabel(String key) {
+    final custom = DietPayloadBuilder.userEnteredMealName(key, periods);
+    if (custom != null && custom.isNotEmpty) return custom;
     if (key == "breakfast") return "breakfast".tr;
     if (key == "lunch") return "lunch".tr;
     if (key == "dinner") return "dinner".tr;
